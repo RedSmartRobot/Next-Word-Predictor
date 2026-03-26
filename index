@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LLM Predictor Demo for Law Students</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #333; max-width: 800px; margin: 40px auto; padding: 0 20px; background-color: #f4f7f6; }
+        .card { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        h1 { color: #2c3e50; margin-top: 0; }
+        p.description { color: #666; font-size: 1.1rem; }
+        #input-area { width: 100%; height: 100px; padding: 15px; font-size: 18px; border: 2px solid #ddd; border-radius: 8px; margin-bottom: 20px; box-sizing: border-box; resize: none; }
+        #input-area:focus { border-color: #3498db; outline: none; }
+        .suggestions-title { font-weight: bold; margin-bottom: 10px; color: #2c3e50; }
+        .suggestions-container { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; }
+        .word-btn { background: #3498db; color: white; border: none; padding: 10px 20px; border-radius: 20px; cursor: pointer; font-size: 16px; transition: background 0.2s; display: flex; align-items: center; gap: 8px; }
+        .word-btn:hover { background: #2980b9; }
+        .probability { font-size: 0.8rem; background: rgba(255,255,255,0.3); padding: 2px 6px; border-radius: 10px; }
+        .debug-panel { margin-top: 30px; padding: 20px; background: #2c3e50; color: #ecf0f1; border-radius: 8px; font-family: monospace; font-size: 0.9rem; }
+        .highlight { color: #f1c40f; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h1>LLM Next-Word Predictor</h1>
+    <p class="description">How does an AI "write"? It doesn't know facts; it predicts the most likely next word based on the text it has seen before.</p>
+    
+    <textarea id="input-area" placeholder="Start typing: 'The defendant is...' or 'Pursuant to...'"></textarea>
+    
+    <div class="suggestions-title">Top Predicted Next Words:</div>
+    <div id="suggestions" class="suggestions-container">
+        </div>
+
+    <div class="debug-panel">
+        <strong>"The Black Box" (Internal Logic):</strong>
+        <div id="debug-text">Waiting for input...</div>
+    </div>
+</div>
+
+<script>
+    // A simplified "Legal Training Set" (N-gram Model)
+    // In a real LLM, this would be billions of parameters.
+    const legalCorpus = {
+        "the": { "defendant": 0.4, "court": 0.3, "plaintiff": 0.2, "contract": 0.1 },
+        "the defendant": { "is": 0.5, "pleaded": 0.3, "was": 0.2 },
+        "the defendant is": { "guilty": 0.6, "liable": 0.3, "innocent": 0.1 },
+        "pursuant": { "to": 1.0 },
+        "pursuant to": { "section": 0.5, "the": 0.4, "article": 0.1 },
+        "burden": { "of": 1.0 },
+        "burden of": { "proof": 0.9, "persuasion": 0.1 },
+        "beyond": { "a": 1.0 },
+        "beyond a": { "reasonable": 1.0 },
+        "beyond a reasonable": { "doubt": 1.0 },
+        "court": { "finds": 0.4, "orders": 0.3, "rules": 0.3 },
+        "in": { "accordance": 0.4, "violation": 0.3, "re": 0.3 },
+        "accordance": { "with": 1.0 },
+        "breach": { "of": 1.0 },
+        "breach of": { "contract": 0.7, "duty": 0.2, "warranty": 0.1 }
+    };
+
+    const inputArea = document.getElementById('input-area');
+    const suggestionsContainer = document.getElementById('suggestions');
+    const debugText = document.getElementById('debug-text');
+
+    inputArea.addEventListener('input', updatePredictor);
+
+    function updatePredictor() {
+        const text = inputArea.value.trim().toLowerCase();
+        const words = text.split(/\s+/);
+        
+        // We look at the last 1, 2, or 3 words (the "Context Window")
+        let context1 = words.slice(-1).join(" ");
+        let context2 = words.slice(-2).join(" ");
+        let context3 = words.slice(-3).join(" ");
+
+        let predictions = legalCorpus[context3] || legalCorpus[context2] || legalCorpus[context1] || null;
+
+        suggestionsContainer.innerHTML = '';
+        
+        if (predictions) {
+            debugText.innerHTML = `Current Context: <span class="highlight">"${context3}"</span><br>Status: Found matching pattern in database.`;
+            
+            Object.entries(predictions)
+                .sort((a, b) => b[1] - a[1])
+                .forEach(([word, prob]) => {
+                    const btn = document.createElement('button');
+                    btn.className = 'word-btn';
+                    btn.innerHTML = `${word} <span class="probability">${(prob * 100).toFixed(0)}%</span>`;
+                    btn.onclick = () => {
+                        inputArea.value += " " + word;
+                        updatePredictor();
+                        inputArea.focus();
+                    };
+                    suggestionsContainer.appendChild(btn);
+                });
+        } else {
+            debugText.innerHTML = `Current Context: <span class="highlight">"${context1}"</span><br>Status: No specific legal pattern found. Using default distribution.`;
+            // Fallback generic words
+            ["the", "and", "or"].forEach(word => {
+                const btn = document.createElement('button');
+                btn.className = 'word-btn';
+                btn.innerText = word;
+                btn.onclick = () => {
+                    inputArea.value += " " + word;
+                    updatePredictor();
+                };
+                suggestionsContainer.appendChild(btn);
+            });
+        }
+    }
+</script>
+
+</body>
+</html>
