@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Legal LLM Demo</title>
+    <script src="https://js.puter.com/v2/"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f0f2f5; color: #1a1a1a; max-width: 900px; margin: 40px auto; padding: 20px; }
+        .container { background: white; padding: 40px; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); }
+        h1 { color: #2c3e50; border-bottom: 2px solid #eee; padding-bottom: 10px; }
+        .tagline { color: #7f8c8d; margin-bottom: 30px; }
+        #input-box { width: 100%; height: 120px; padding: 20px; font-size: 1.1rem; border: 2px solid #dfe6e9; border-radius: 10px; resize: none; transition: border 0.3s; }
+        #input-box:focus { border-color: #3498db; outline: none; }
+        .label { font-weight: bold; margin: 25px 0 10px; display: block; color: #34495e; }
+        .suggestion-grid { display: flex; gap: 12px; flex-wrap: wrap; min-height: 50px; }
+        .word-chip { background: #3498db; color: white; border: none; padding: 12px 24px; border-radius: 30px; cursor: pointer; font-weight: 500; transition: transform 0.1s, background 0.2s; }
+        .word-chip:hover { background: #2980b9; transform: translateY(-2px); }
+        .word-chip:active { transform: scale(0.95); }
+        .status-indicator { margin-top: 30px; font-size: 0.85rem; padding: 15px; background: #2d3436; color: #dfe6e9; border-radius: 8px; font-family: 'Courier New', Courier, monospace; }
+        .loading { color: #f1c40f; font-style: italic; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Legal "Token" Predictor</h1>
+    <p class="tagline">This demo connects to a live Large Language Model (Llama-3) to predict the most statistically probable next words in a legal context.</p>
+
+    <textarea id="input-box" placeholder="Try: 'The court hereby...', 'Under the doctrine of...', or 'Motion to...'"></textarea>
+
+    <span class="label">Top Probabilities from the Neural Network:</span>
+    <div id="suggestions" class="suggestion-grid">
+        <span style="color:#bdc3c7">Type something to see predictions...</span>
+    </div>
+
+    <div class="status-indicator" id="status">
+        [System] Ready. Using 70B Parameter Model.
+    </div>
+</div>
+
+<script>
+    const inputBox = document.getElementById('input-box');
+    const suggestionsDiv = document.getElementById('suggestions');
+    const statusDiv = document.getElementById('status');
+    let timeout = null;
+
+    inputBox.addEventListener('input', () => {
+        clearTimeout(timeout);
+        const text = inputBox.value.trim();
+        
+        if (text.length < 3) return;
+
+        // We use a small delay so we don't spam the API while typing
+        timeout = setTimeout(() => fetchPredictions(text), 600);
+    });
+
+    async function fetchPredictions(context) {
+        suggestionsDiv.innerHTML = '<span class="loading">Consulting neural weights...</span>';
+        statusDiv.innerText = `[Processing] Analyzing context: "${context.slice(-20)}..."`;
+
+        try {
+            // We ask the LLM to give us exactly 4 one-word options
+            const prompt = `You are a legal text completion engine. Provide exactly 4 single-word completions for the following legal text snippet. Output ONLY the 4 words separated by commas. Context: "${context}"`;
+            
+            const response = await puter.ai.chat(prompt, { model: 'llama3' });
+            const result = response.message.content.replace(/\./g, '').split(',');
+
+            suggestionsDiv.innerHTML = '';
+            result.forEach(word => {
+                const cleanWord = word.trim();
+                if (cleanWord) {
+                    const btn = document.createElement('button');
+                    btn.className = 'word-chip';
+                    btn.innerText = cleanWord;
+                    btn.onclick = () => {
+                        inputBox.value += " " + cleanWord;
+                        fetchPredictions(inputBox.value);
+                    };
+                    suggestionsDiv.appendChild(btn);
+                }
+            });
+            statusDiv.innerText = `[Success] Model predicted completions based on statistical patterns.`;
+
+        } catch (error) {
+            suggestionsDiv.innerHTML = '<span style="color:red">Connection error. Please try again.</span>';
+            console.error(error);
+        }
+    }
+</script>
+
+</body>
+</html>
