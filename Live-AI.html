@@ -3,39 +3,41 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Live Legal LLM Demo</title>
+    <title>Legal AI: Token Predictor Demo</title>
     <script src="https://js.puter.com/v2/"></script>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f0f2f5; color: #1a1a1a; max-width: 900px; margin: 40px auto; padding: 20px; }
-        .container { background: white; padding: 40px; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); }
-        h1 { color: #2c3e50; border-bottom: 2px solid #eee; padding-bottom: 10px; }
-        .tagline { color: #7f8c8d; margin-bottom: 30px; }
-        #input-box { width: 100%; height: 120px; padding: 20px; font-size: 1.1rem; border: 2px solid #dfe6e9; border-radius: 10px; resize: none; transition: border 0.3s; }
-        #input-box:focus { border-color: #3498db; outline: none; }
-        .label { font-weight: bold; margin: 25px 0 10px; display: block; color: #34495e; }
-        .suggestion-grid { display: flex; gap: 12px; flex-wrap: wrap; min-height: 50px; }
-        .word-chip { background: #3498db; color: white; border: none; padding: 12px 24px; border-radius: 30px; cursor: pointer; font-weight: 500; transition: transform 0.1s, background 0.2s; }
-        .word-chip:hover { background: #2980b9; transform: translateY(-2px); }
-        .word-chip:active { transform: scale(0.95); }
-        .status-indicator { margin-top: 30px; font-size: 0.85rem; padding: 15px; background: #2d3436; color: #dfe6e9; border-radius: 8px; font-family: 'Courier New', Courier, monospace; }
-        .loading { color: #f1c40f; font-style: italic; }
+        body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background-color: #f8f9fa; color: #212529; max-width: 850px; margin: 40px auto; padding: 20px; line-height: 1.5; }
+        .container { background: white; padding: 40px; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); border: 1px solid #e9ecef; }
+        h1 { color: #2c3e50; font-size: 2rem; margin-bottom: 8px; }
+        .tagline { color: #6c757d; margin-bottom: 25px; font-style: italic; }
+        #input-box { width: 100%; height: 140px; padding: 18px; font-size: 1.1rem; border: 2px solid #dee2e6; border-radius: 12px; resize: none; transition: all 0.2s ease; box-sizing: border-box; }
+        #input-box:focus { border-color: #007bff; outline: none; box-shadow: 0 0 0 4px rgba(0,123,255,0.1); }
+        .label { font-weight: 600; margin: 25px 0 12px; display: block; color: #495057; text-transform: uppercase; letter-spacing: 0.5px; font-size: 0.85rem; }
+        .suggestion-grid { display: flex; gap: 10px; flex-wrap: wrap; min-height: 52px; align-items: center; }
+        .word-chip { background: #007bff; color: white; border: none; padding: 10px 22px; border-radius: 50px; cursor: pointer; font-weight: 500; font-size: 1rem; transition: all 0.2s; }
+        .word-chip:hover { background: #0056b3; transform: translateY(-1px); box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        .word-chip:active { transform: scale(0.96); }
+        .status-panel { margin-top: 35px; padding: 15px; background: #212529; color: #adb5bd; border-radius: 8px; font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace; font-size: 0.8rem; border-left: 4px solid #007bff; }
+        .loading { color: #ffc107; animation: blink 1.5s infinite; }
+        @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+        .error-msg { color: #dc3545; font-weight: bold; }
     </style>
 </head>
 <body>
 
 <div class="container">
     <h1>Legal "Token" Predictor</h1>
-    <p class="tagline">This demo connects to a live Large Language Model (Llama-3) to predict the most statistically probable next words in a legal context.</p>
+    <p class="tagline">Demonstrating how LLMs predict the next word based on statistical probability.</p>
 
-    <textarea id="input-box" placeholder="Try: 'The court hereby...', 'Under the doctrine of...', or 'Motion to...'"></textarea>
+    <textarea id="input-box" placeholder="Example: 'The burden of proof lies with...'"></textarea>
 
-    <span class="label">Top Probabilities from the Neural Network:</span>
+    <span class="label">Top Predicted Next Words:</span>
     <div id="suggestions" class="suggestion-grid">
-        <span style="color:#bdc3c7">Type something to see predictions...</span>
+        <span style="color:#adb5bd">Start typing to see AI predictions...</span>
     </div>
 
-    <div class="status-indicator" id="status">
-        [System] Ready. Using 70B Parameter Model.
+    <div class="status-panel" id="status">
+        [System] Initializing connection to Puter AI...
     </div>
 </div>
 
@@ -45,56 +47,60 @@
     const statusDiv = document.getElementById('status');
     let timeout = null;
 
+    // List of models to try in order of preference
+    const MODELS = ['gpt-5-nano', 'gpt-5-mini', 'gpt-4o-mini'];
+
     inputBox.addEventListener('input', () => {
         clearTimeout(timeout);
         const text = inputBox.value.trim();
-        
         if (text.length < 3) return;
-
-        // We use a small delay so we don't spam the API while typing
-        timeout = setTimeout(() => fetchPredictions(text), 600);
+        timeout = setTimeout(() => fetchPredictions(text), 500);
     });
 
-    async function fetchPredictions(context) {
-    suggestionsDiv.innerHTML = '<span class="loading">Consulting neural weights...</span>';
-    
-    // Check if Puter is actually ready
-    if (!puter.auth.isSignedIn()) {
-        statusDiv.innerHTML = '<span style="color:red">[Error] You must be signed in to Puter to use the AI. Please refresh and sign in.</span>';
-        return;
-    }
+    async function fetchPredictions(context, modelIndex = 0) {
+        if (modelIndex >= MODELS.length) {
+            suggestionsDiv.innerHTML = '<span class="error-msg">All models failed. Please check internet connection.</span>';
+            return;
+        }
 
-    try {
-        const prompt = `You are a legal text completion engine. Provide exactly 4 single-word completions for the following legal text snippet. Output ONLY the 4 words separated by commas. Context: "${context}"`;
-        
-        // Added a timeout to the fetch
-        const response = await puter.ai.chat(prompt, { model: 'llama3' });
-        
-        if (!response || !response.message) throw new Error("Empty response from AI");
+        const currentModel = MODELS[modelIndex];
+        suggestionsDiv.innerHTML = `<span class="loading">Consulting ${currentModel}...</span>`;
+        statusDiv.innerText = `[Request] Model: ${currentModel} | Context: "...${context.slice(-15)}"`;
 
-        const result = response.message.content.replace(/\./g, '').split(',');
-        suggestionsDiv.innerHTML = '';
-        result.forEach(word => {
-            const cleanWord = word.trim();
-            if (cleanWord) {
+        try {
+            const prompt = `You are a legal text completion engine. Provide exactly 4 single-word completions for this text. Output ONLY the words separated by commas. Context: "${context}"`;
+            
+            const response = await puter.ai.chat(prompt, { model: currentModel });
+            
+            // Clean and parse the response
+            const rawContent = response.message.content;
+            const words = rawContent.replace(/[\[\]\"\'\.]/g, '').split(',').map(w => w.trim()).filter(w => w.length > 0);
+
+            suggestionsDiv.innerHTML = '';
+            words.slice(0, 4).forEach(word => {
                 const btn = document.createElement('button');
                 btn.className = 'word-chip';
-                btn.innerText = cleanWord;
+                btn.innerText = word;
                 btn.onclick = () => {
-                    inputBox.value += " " + cleanWord;
+                    inputBox.value += (inputBox.value.endsWith(' ') ? '' : ' ') + word;
                     fetchPredictions(inputBox.value);
+                    inputBox.focus();
                 };
                 suggestionsDiv.appendChild(btn);
-            }
-        });
-        statusDiv.innerText = `[Success] Model predicted completions.`;
+            });
+            statusDiv.innerText = `[Success] Predictions returned from ${currentModel}.`;
 
-    } catch (error) {
-        console.error("Full Error Object:", error);
-        suggestionsDiv.innerHTML = '<span style="color:red">AI Error. Check console for details.</span>';
-        statusDiv.innerText = `[System Error] ${error.message}`;
+        } catch (error) {
+            console.warn(`Model ${currentModel} failed:`, error.message);
+            // Try the next model in the list
+            fetchPredictions(context, modelIndex + 1);
+        }
     }
-}
+
+    // Initial check
+    window.onload = () => {
+        statusDiv.innerText = "[System] Ready. Please ensure you are signed into Puter.";
+    };
 </script>
 
 </body>
