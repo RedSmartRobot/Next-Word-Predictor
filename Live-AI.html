@@ -56,37 +56,45 @@
     });
 
     async function fetchPredictions(context) {
-        suggestionsDiv.innerHTML = '<span class="loading">Consulting neural weights...</span>';
-        statusDiv.innerText = `[Processing] Analyzing context: "${context.slice(-20)}..."`;
-
-        try {
-            // We ask the LLM to give us exactly 4 one-word options
-            const prompt = `You are a legal text completion engine. Provide exactly 4 single-word completions for the following legal text snippet. Output ONLY the 4 words separated by commas. Context: "${context}"`;
-            
-            const response = await puter.ai.chat(prompt, { model: 'llama3' });
-            const result = response.message.content.replace(/\./g, '').split(',');
-
-            suggestionsDiv.innerHTML = '';
-            result.forEach(word => {
-                const cleanWord = word.trim();
-                if (cleanWord) {
-                    const btn = document.createElement('button');
-                    btn.className = 'word-chip';
-                    btn.innerText = cleanWord;
-                    btn.onclick = () => {
-                        inputBox.value += " " + cleanWord;
-                        fetchPredictions(inputBox.value);
-                    };
-                    suggestionsDiv.appendChild(btn);
-                }
-            });
-            statusDiv.innerText = `[Success] Model predicted completions based on statistical patterns.`;
-
-        } catch (error) {
-            suggestionsDiv.innerHTML = '<span style="color:red">Connection error. Please try again.</span>';
-            console.error(error);
-        }
+    suggestionsDiv.innerHTML = '<span class="loading">Consulting neural weights...</span>';
+    
+    // Check if Puter is actually ready
+    if (!puter.auth.isSignedIn()) {
+        statusDiv.innerHTML = '<span style="color:red">[Error] You must be signed in to Puter to use the AI. Please refresh and sign in.</span>';
+        return;
     }
+
+    try {
+        const prompt = `You are a legal text completion engine. Provide exactly 4 single-word completions for the following legal text snippet. Output ONLY the 4 words separated by commas. Context: "${context}"`;
+        
+        // Added a timeout to the fetch
+        const response = await puter.ai.chat(prompt, { model: 'llama3' });
+        
+        if (!response || !response.message) throw new Error("Empty response from AI");
+
+        const result = response.message.content.replace(/\./g, '').split(',');
+        suggestionsDiv.innerHTML = '';
+        result.forEach(word => {
+            const cleanWord = word.trim();
+            if (cleanWord) {
+                const btn = document.createElement('button');
+                btn.className = 'word-chip';
+                btn.innerText = cleanWord;
+                btn.onclick = () => {
+                    inputBox.value += " " + cleanWord;
+                    fetchPredictions(inputBox.value);
+                };
+                suggestionsDiv.appendChild(btn);
+            }
+        });
+        statusDiv.innerText = `[Success] Model predicted completions.`;
+
+    } catch (error) {
+        console.error("Full Error Object:", error);
+        suggestionsDiv.innerHTML = '<span style="color:red">AI Error. Check console for details.</span>';
+        statusDiv.innerText = `[System Error] ${error.message}`;
+    }
+}
 </script>
 
 </body>
